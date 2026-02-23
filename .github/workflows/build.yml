@@ -13,9 +13,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install Dependencies
-        run: |
-          pip install flet
-          # Eğer başka kütüphane varsa buraya ekleyebiliriz
+        run: pip install flet
 
       - uses: subosito/flutter-action@v2
         with:
@@ -23,13 +21,13 @@ jobs:
 
       - name: Build APK
         run: |
-          # Dosyalar bir klasörün içindeyse oraya gir, değilse devam et
+          # Soru sorduğunda otomatik 'y' (yes) cevabı gönderiyoruz
           if [ -d "CanKaMobil" ]; then
             cd CanKaMobil
-            flet build apk --org "com.mericdemirci.canka"
-            mv build .. # Build klasörünü dışarı çıkar ki robot bulabilsin
+            echo y | flet build apk --org "com.mericdemirci.canka"
+            mv build ..
           else
-            flet build apk --org "com.mericdemirci.canka"
+            echo y | flet build apk --org "com.mericdemirci.canka"
           fi
 
       - name: Upload APK
