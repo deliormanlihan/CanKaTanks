@@ -2,7 +2,6 @@ import flet as ft
 import os
 import json
 import webbrowser
-import tempfile
 from datetime import datetime
 
 def main(page: ft.Page):
@@ -11,7 +10,7 @@ def main(page: ft.Page):
     page.scroll = ft.ScrollMode.AUTO 
     page.padding = 15
 
-    # ================= GÜVENLİ HAFIZA SİSTEMİ (MOBİL UYUMLU) =================
+    # ================= GÜVENLİ HAFIZA SİSTEMİ =================
     ayarlar = {
         "tema": "dark",
         "konum": "ISTANBUL",
@@ -20,7 +19,6 @@ def main(page: ft.Page):
         "tanklar": {}
     }
     
-    # Klasör izni (LOCALAPPDATA) dertlerinden kurtulduk, Flet'in kendi hafızasını kullanıyoruz
     try:
         if page.client_storage.contains_key("canka_ayarlar"):
             kayitli = page.client_storage.get("canka_ayarlar")
@@ -37,10 +35,9 @@ def main(page: ft.Page):
 
     page.theme_mode = ft.ThemeMode.LIGHT if ayarlar["tema"] == "light" else ft.ThemeMode.DARK
 
-    # ================= JSON VERİ YÜKLEME (MOBİL UYUMLU) =================
+    # ================= JSON VERİ YÜKLEME =================
     veri_tablolari = {}
     try:
-        # Uygulama telefona kurulduğunda json dosyasını doğru yerde bulabilmesi için
         base_path = os.path.dirname(__file__) if "__file__" in locals() else os.getcwd()
         json_path = os.path.join(base_path, "Tanklar.json")
         
@@ -84,6 +81,7 @@ def main(page: ft.Page):
         ayarlari_kaydet(); page.update()
 
     switch_tema = ft.Switch(label="Light Mode", value=(page.theme_mode == ft.ThemeMode.LIGHT), on_change=tema_degistir)
+    
     page.appbar = ft.AppBar(title=ft.Text("DAILY BUNKER REPORT", weight=ft.FontWeight.BOLD), center_title=True, bgcolor="surfaceVariant", actions=[switch_tema, ft.Container(width=10)])
 
     # ================= SAFKAN PYTHON MATEMATİK MOTORU =================
@@ -225,6 +223,7 @@ def main(page: ft.Page):
     for a, k, s in sl_veri: sl_nesneleri.append(MobilTankSatiri(a, k, s, toplamlari_guncelle))
     bl_nesneleri.append(MobilTankSatiri("Bilge Holding Tank", 39.11, "Bilge Holding Tank", toplamlari_guncelle))
 
+    # ================= DOĞRUDAN İNDİRİLENLER KLASÖRÜNE YAZMA SİSTEMİ =================
     def rapor_yazdir(e):
         html = f"<html><body style='font-family: Arial; margin: 30px;'><h2 style='text-align:center;'>M/T CAN KA<br>DAILY BUNKER REPORT</h2><p><b>Date/Time:</b> {txt_tarih.value} - {txt_saat.value}<br><b>Location:</b> {txt_konum.value}<br><b>Trim:</b> {txt_trim.value} m</p><table style='width:100%; border-collapse: collapse;' border='1'><tr><th style='background:#eee;'>Sludge Tanks</th><th>Capacity</th><th>Sounding</th><th>Volume</th><th>Fill</th></tr>"
         tv = 0
@@ -233,29 +232,59 @@ def main(page: ft.Page):
         for t in bl_nesneleri: html += f"<tr><td>{t.tank_adi}</td><td>{t.max_kapasite:.3f}</td><td>{t.snd_input.value or '-'}</td><td>{t.vol_input.value or '-'}</td><td>{t.pct_label.value}</td></tr>"
         html += f"</table><div style='margin-top:50px; text-align:right;'><b>Chief Engineer</b><br>{txt_ce.value}</div><script>window.onload=function(){{window.print();}}</script></body></html>"
         
-        try:
-            # Android'in dosyaya yazmaya kızmaması için geçici sistem (temp) klasörünü kullanıyoruz
-            temp_dir = tempfile.gettempdir()
-            report_path = os.path.join(temp_dir, "Report.html")
-            with open(report_path, "w", encoding="utf-8") as f: 
-                f.write(html)
-            webbrowser.open('file://' + report_path)
+        # Dosya adı örn: CAN_KA_23022026.html
+        tarih_formatli = txt_tarih.value.replace('.', '')
+        dosya_adi = f"CAN_KA_{tarih_formatli}.html"
+        
+        # Telefonun Android "Download" (İndirilenler) klasörünü buluyoruz
+        if os.path.exists("/storage/emulated/0/Download"):
+            hedef_klasor = "/storage/emulated/0/Download"
+        else:
+            # PC için Fallback
+            hedef_klasor = os.path.join(os.path.expanduser('~'), 'Downloads')
             
-            # Ekranda kullanıcıya bilgi ver
-            page.snack_bar = ft.SnackBar(ft.Text("Rapor hazırlandı! Tarayıcı bekleniyor..."), bgcolor="green")
+        try:
+            os.makedirs(hedef_klasor, exist_ok=True)
+            tam_yol = os.path.join(hedef_klasor, dosya_adi)
+            
+            with open(tam_yol, "w", encoding="utf-8") as f:
+                f.write(html)
+                
+            page.snack_bar = ft.SnackBar(
+                ft.Text(f"RAPOR KAYDEDİLDİ!\nLütfen telefonun 'İndirilenler' (Download) klasörüne bakınız:\n{dosya_adi}", size=14, weight=ft.FontWeight.BOLD),
+                bgcolor="green", duration=7000
+            )
             page.snack_bar.open = True
-            page.update()
+            
+            # Eğer sistem destekliyorsa (PC vs.) otomatik açmayı dene
+            try:
+                webbrowser.open(f"file://{tam_yol}")
+            except:
+                pass
+                
         except Exception as err:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Rapor açılamadı: {err}"), bgcolor="red")
+            page.snack_bar = ft.SnackBar(ft.Text(f"Kayıt Hatası: Cihaz izni reddetti. {err}"), bgcolor="red")
             page.snack_bar.open = True
-            page.update()
+            
+        page.update()
 
+    # --- ANA EKRAN YERLEŞİMİ ---
     page.add(
-        ft.Row([txt_tarih, txt_saat], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Row([txt_konum, txt_trim], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), txt_ce, ft.Divider(),
-        ft.Text("SLUDGE TANKLARI", color="red", weight=ft.FontWeight.BOLD), *[t.view for t in sl_nesneleri], ft.Container(content=lbl_sl_toplam, bgcolor="orange", padding=15, border_radius=10, alignment=ft.Alignment(0,0)),
-        ft.Divider(), ft.Text("BILGE TANKLARI", color="blue", weight=ft.FontWeight.BOLD), *[t.view for t in bl_nesneleri],
-        ft.Divider(), ft.ElevatedButton("🖨️ RAPORU YAZDIR", bgcolor="purple", color="white", height=50, on_click=rapor_yazdir, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))),
-        ft.Container(height=10), ft.Text("Developed By Deliormanlıhan Meriç DEMİRCİ", color="green", italic=True, size=12, weight=ft.FontWeight.BOLD)
+        ft.Container(height=60), # EKRAN TAŞMASINI ÖNLEYEN NEFES BOŞLUĞU
+        ft.Row([txt_tarih, txt_saat], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), 
+        ft.Row([txt_konum, txt_trim], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), 
+        txt_ce, 
+        ft.Divider(),
+        ft.Text("SLUDGE TANKLARI", color="red", weight=ft.FontWeight.BOLD), 
+        *[t.view for t in sl_nesneleri], 
+        ft.Container(content=lbl_sl_toplam, bgcolor="orange", padding=15, border_radius=10, alignment=ft.Alignment(0,0)),
+        ft.Divider(), 
+        ft.Text("BILGE TANKLARI", color="blue", weight=ft.FontWeight.BOLD), 
+        *[t.view for t in bl_nesneleri],
+        ft.Divider(), 
+        ft.ElevatedButton("🖨️ RAPORU İNDİRİLENLERE KAYDET", bgcolor="purple", color="white", height=50, on_click=rapor_yazdir, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))),
+        ft.Container(height=10), 
+        ft.Text("Developed By Deliormanlıhan Meriç DEMİRCİ", color="green", italic=True, size=12, weight=ft.FontWeight.BOLD)
     )
     tumunu_hesapla(None)
 
