@@ -6,6 +6,10 @@ from datetime import datetime
 
 def main(page: ft.Page):
     # ================= HAFIZA SİSTEMİ =================
+    # Android ve Windows uyumlu güvenli yol
+if os.environ.get("ANDROID_BOOTLOGO") is not None:
+    appdata_yolu = page.client_storage.get_item("app_path") or "/sdcard/Download" # Geçici çözüm
+else:
     appdata_yolu = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'CanKaSoundingMobil')
     os.makedirs(appdata_yolu, exist_ok=True)
     ayarlar_dosyasi = os.path.join(appdata_yolu, "ayarlar.json")
@@ -239,3 +243,4 @@ def main(page: ft.Page):
     tumunu_hesapla(None)
 
 ft.run(main)
+
