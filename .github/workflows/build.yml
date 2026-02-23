@@ -6,40 +6,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install Flet
-        run: pip install flet
+
+      - name: Install Dependencies
+        run: |
+          pip install flet
+          # Eğer başka kütüphane varsa buraya ekleyebiliriz
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+
       - name: Build APK
-        run: flet build apk --org "com.mericdemirci.canka"
+        run: |
+          # Dosyalar bir klasörün içindeyse oraya gir, değilse devam et
+          if [ -d "CanKaMobil" ]; then
+            cd CanKaMobil
+            flet build apk --org "com.mericdemirci.canka"
+            mv build .. # Build klasörünü dışarı çıkar ki robot bulabilsin
+          else
+            flet build apk --org "com.mericdemirci.canka"
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: CanKa-Android-APK
-          path: build/apk/*.apk
-
-  ios-build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install Flet
-        run: pip install flet
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-      - name: Build iOS
-        run: flet build ipa --org "com.mericdemirci.canka" || echo "Sertifika olmadığı için paketlenemedi ama derleme denendi."
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: CanKa-iOS-IPA
-          path: build/ios/ipa/*.ipa
+          path: "**/build/apk/*.apk"
