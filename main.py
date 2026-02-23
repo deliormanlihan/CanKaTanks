@@ -2,51 +2,55 @@ import flet as ft
 import os
 import json
 import webbrowser
+import tempfile
 from datetime import datetime
 
 def main(page: ft.Page):
-    # ================= HAFIZA SİSTEMİ =================
-    # Android ve Windows uyumlu güvenli yol
-    if os.environ.get("ANDROID_BOOTLOGO") is not None:
-        appdata_yolu = page.client_storage.get_item("app_path") or "/sdcard/Download" # Geçici çözüm
-    else:
-        appdata_yolu = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'CanKaSoundingMobil')
-    os.makedirs(appdata_yolu, exist_ok=True)
-    ayarlar_dosyasi = os.path.join(appdata_yolu, "ayarlar.json")
-    
-    ayarlar = {
-        "tema": "dark",
-        "konum": "ELEUSIS",
-        "ce": "Meriç Demirci",
-        "trim": "-0.5",
-        "tanklar": {}
-    }
-    
-    if os.path.exists(ayarlar_dosyasi):
-        try:
-            with open(ayarlar_dosyasi, "r", encoding="utf-8") as f:
-                ayarlar.update(json.load(f))
-        except: pass
-
-    def ayarlari_kaydet():
-        try:
-            with open(ayarlar_dosyasi, "w", encoding="utf-8") as f:
-                json.dump(ayarlar, f, ensure_ascii=False, indent=4)
-        except: pass
-
     # --- EKRAN AYARLARI ---
     page.title = "CAN KA Sounding"
-    page.theme_mode = ft.ThemeMode.LIGHT if ayarlar["tema"] == "light" else ft.ThemeMode.DARK
     page.scroll = ft.ScrollMode.AUTO 
     page.padding = 15
 
-    # ================= JSON VERİ YÜKLEME (EXCEL YERİNE) =================
+    # ================= GÜVENLİ HAFIZA SİSTEMİ (MOBİL UYUMLU) =================
+    ayarlar = {
+        "tema": "dark",
+        "konum": "ISTANBUL",
+        "ce": "Meriç Demirci",
+        "trim": "-2",
+        "tanklar": {}
+    }
+    
+    # Klasör izni (LOCALAPPDATA) dertlerinden kurtulduk, Flet'in kendi hafızasını kullanıyoruz
+    try:
+        if page.client_storage.contains_key("canka_ayarlar"):
+            kayitli = page.client_storage.get("canka_ayarlar")
+            if kayitli:
+                ayarlar.update(kayitli)
+    except:
+        pass
+
+    def ayarlari_kaydet():
+        try:
+            page.client_storage.set("canka_ayarlar", ayarlar)
+        except:
+            pass
+
+    page.theme_mode = ft.ThemeMode.LIGHT if ayarlar["tema"] == "light" else ft.ThemeMode.DARK
+
+    # ================= JSON VERİ YÜKLEME (MOBİL UYUMLU) =================
     veri_tablolari = {}
-    if os.path.exists("Tanklar.json"):
-        with open("Tanklar.json", "r", encoding="utf-8") as f:
-            veri_tablolari = json.load(f)
-    else:
-        print("DİKKAT: Tanklar.json bulunamadı!")
+    try:
+        # Uygulama telefona kurulduğunda json dosyasını doğru yerde bulabilmesi için
+        base_path = os.path.dirname(__file__) if "__file__" in locals() else os.getcwd()
+        json_path = os.path.join(base_path, "Tanklar.json")
+        
+        if os.path.exists(json_path):
+            with open(json_path, "r", encoding="utf-8") as f:
+                veri_tablolari = json.load(f)
+        else:
+            page.add(ft.Text("DİKKAT: Tanklar.json bulunamadı!", color="red", weight=ft.FontWeight.BOLD))
+    except Exception as e:
+        page.add(ft.Text(f"JSON Okuma Hatası: {e}", color="red"))
 
     # --- BİLGİ KUTULARI ---
     txt_tarih = ft.TextField(label="Tarih", value=datetime.now().strftime("%d.%m.%Y"), width=120, text_align=ft.TextAlign.CENTER)
@@ -228,10 +232,23 @@ def main(page: ft.Page):
         html += f"<tr style='background:#fff3cd; font-weight:bold;'><td colspan='3' align='right'>TOTAL:</td><td>{tv:.4f}</td><td>-</td></tr></table><br><table style='width:100%; border-collapse: collapse;' border='1'><tr><th style='background:#eee;'>Bilge Tanks</th><th>Capacity</th><th>Sounding</th><th>Volume</th><th>Fill</th></tr>"
         for t in bl_nesneleri: html += f"<tr><td>{t.tank_adi}</td><td>{t.max_kapasite:.3f}</td><td>{t.snd_input.value or '-'}</td><td>{t.vol_input.value or '-'}</td><td>{t.pct_label.value}</td></tr>"
         html += f"</table><div style='margin-top:50px; text-align:right;'><b>Chief Engineer</b><br>{txt_ce.value}</div><script>window.onload=function(){{window.print();}}</script></body></html>"
+        
         try:
-            with open("Report.html", "w", encoding="utf-8") as f: f.write(html)
-            webbrowser.open('file://' + os.path.realpath("Report.html"))
-        except: pass
+            # Android'in dosyaya yazmaya kızmaması için geçici sistem (temp) klasörünü kullanıyoruz
+            temp_dir = tempfile.gettempdir()
+            report_path = os.path.join(temp_dir, "Report.html")
+            with open(report_path, "w", encoding="utf-8") as f: 
+                f.write(html)
+            webbrowser.open('file://' + report_path)
+            
+            # Ekranda kullanıcıya bilgi ver
+            page.snack_bar = ft.SnackBar(ft.Text("Rapor hazırlandı! Tarayıcı bekleniyor..."), bgcolor="green")
+            page.snack_bar.open = True
+            page.update()
+        except Exception as err:
+            page.snack_bar = ft.SnackBar(ft.Text(f"Rapor açılamadı: {err}"), bgcolor="red")
+            page.snack_bar.open = True
+            page.update()
 
     page.add(
         ft.Row([txt_tarih, txt_saat], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Row([txt_konum, txt_trim], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), txt_ce, ft.Divider(),
@@ -243,5 +260,3 @@ def main(page: ft.Page):
     tumunu_hesapla(None)
 
 ft.run(main)
-
-
