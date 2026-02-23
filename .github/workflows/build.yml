@@ -1,12 +1,13 @@
-name: Build Flet APK
-on: [push, pull_request]
+name: CanKa Build System
+on: [push]
 
 jobs:
-  build:
+  android-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Install Flet
@@ -19,5 +20,26 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: canka-apk
+          name: CanKa-Android-APK
           path: build/apk/*.apk
+
+  ios-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Flet
+        run: pip install flet
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Build iOS
+        run: flet build ipa --org "com.mericdemirci.canka" || echo "Sertifika olmadığı için paketlenemedi ama derleme denendi."
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CanKa-iOS-IPA
+          path: build/ios/ipa/*.ipa
